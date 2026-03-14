@@ -271,6 +271,8 @@ namespace N64Recomp {
         // Causes functions to print their name to the console the first time they're called.
         bool trace_mode;
 
+        bool ignore_unhandled_ops;
+
         // Imports sections and function symbols from a provided context into this context's reference sections and reference functions.
         bool import_reference_context(const Context& reference_context);
         // Reads a data symbol file and adds its contents into this context's reference data symbols.

@@ -6,8 +6,8 @@
 #include <optional>
 
 #include "rabbitizer.hpp"
-#include "fmt/format.h"
-#include "fmt/ostream.h"
+#include "spdlog/spdlog.h"
+#include "spdlog/fmt/ostr.h"
 
 #include "recompiler/context.h"
 #include "config.h"
@@ -117,7 +117,7 @@ bool recompile_single_function(const N64Recomp::Context& context, size_t func_in
     temp_path.replace_extension(".tmp");
     std::ofstream output_file{ temp_path };
     if (!output_file.good()) {
-        fmt::print(stderr, "Failed to open file for writing: {}\n", temp_path.string() );
+        SPDLOG_ERROR("Failed to open file for writing: {}", temp_path.string() );
         return false;
     }
 
@@ -275,7 +275,7 @@ int main(int argc, char** argv) {
     bool dumping_context = false;
 
     if (argc < 2) {
-        fmt::print("Usage: {} <config file> [--dump-context]\n", argv[0]);
+        SPDLOG_INFO("Usage: {} <config file> [--dump-context]", argv[0]);
         return EXIT_SUCCESS;
     }
 
@@ -287,7 +287,7 @@ int main(int argc, char** argv) {
             dumping_context = true;
         }
         else {
-            fmt::print("Unknown argument \"{}\"\n", cur_arg);
+            SPDLOG_ERROR("Unknown argument \"{}\"", cur_arg);
             return EXIT_FAILURE;
         }
     }
@@ -384,7 +384,7 @@ int main(int argc, char** argv) {
         }
         
         if (dumping_context) {
-            fmt::print("Dumping context\n");
+            SPDLOG_INFO("Dumping context");
             // Sort the data syms by address so the output is nicer.
             for (auto& [section_index, section_syms] : data_syms) {
                 std::sort(section_syms.begin(), section_syms.end(),
@@ -464,7 +464,7 @@ int main(int argc, char** argv) {
     }
 
 
-    fmt::print("Function count: {}\n", context.functions.size());
+    SPDLOG_INFO("Function count: {}", context.functions.size());
 
     std::filesystem::create_directories(config.output_func_path);
 
@@ -482,7 +482,7 @@ int main(int argc, char** argv) {
 
     std::vector<std::vector<uint32_t>> static_funcs_by_section{ context.sections.size() };
 
-    fmt::print("Working dir: {}\n", std::filesystem::current_path().string());
+    SPDLOG_INFO("Working dir: {}", std::filesystem::current_path().string());
 
     // Stub out any functions specified in the config file.
     for (const std::string& stubbed_func : config.stubbed_funcs) {
@@ -524,8 +524,11 @@ int main(int argc, char** argv) {
         func->name = func->name + "_recomp";
     }
 
-    // Propogate the trace mode parameter.
+    // Propagate the trace mode parameter.
     context.trace_mode = config.trace_mode;
+
+    // Propagate the trace ignore unhandled ops parameter.
+    context.ignore_unhandled_ops = config.ignore_unhandled_ops;
 
     // Apply any single-instruction patches.
     for (const N64Recomp::InstructionPatch& patch : config.instruction_patches) {
@@ -727,13 +730,13 @@ int main(int argc, char** argv) {
 
                 // This is a patch function, but no corresponding symbol was found in the original symbol list.
                 if (in_patch_section && !reference_symbol_found) {
-                    fmt::print(stderr, "Function {} is marked as a replacement, but no function with the same name was found in the reference symbols!\n", func.name);
+                    SPDLOG_ERROR("Function {} is marked as a replacement, but no function with the same name was found in the reference symbols!", func.name);
                     failed_strict_mode = true;
                     continue;
                 }
                 // This is not a patch function, but it has the same name as a function in the original symbol list.
                 else if (!in_patch_section && reference_symbol_found) {
-                    fmt::print(stderr, "Function {} is not marked as a replacement, but a function with the same name was found in the reference symbols!\n", func.name);
+                    SPDLOG_ERROR("Function {} is not marked as a replacement, but a function with the same name was found in the reference symbols!", func.name);
                     failed_strict_mode = true;
                     continue;
                 }
@@ -757,7 +760,7 @@ int main(int argc, char** argv) {
                 result = recompile_single_function(context, i, config.recomp_include, config.output_func_path / (func.name + ".c"), static_funcs_by_section);
             }
             if (result == false) {
-                fmt::print(stderr, "Error recompiling {}\n", func.name);
+                SPDLOG_ERROR("Error recompiling {}", func.name);
                 std::exit(EXIT_FAILURE);
             }
         } else if (func.reimplemented) {
@@ -861,7 +864,7 @@ int main(int argc, char** argv) {
             }
 
             if (result == false) {
-                fmt::print(stderr, "Error recompiling {}\n", new_func.name);
+                SPDLOG_ERROR("Error recompiling {}", new_func.name);
                 std::exit(EXIT_FAILURE);
             }
         }
@@ -1000,7 +1003,7 @@ int main(int argc, char** argv) {
                 else {
                     auto find_it = relocatable_section_indices.find(section);
                     if (find_it == relocatable_section_indices.end()) {
-                        fmt::print(stderr, "Failed to find written section index of relocatable section: {}\n", section);
+                        SPDLOG_ERROR("Failed to find written section index of relocatable section: {}", section);
                         std::exit(EXIT_FAILURE);
                     }
                     fmt::print(overlay_file, "    {},\n", relocatable_section_indices[section]);
@@ -1085,5 +1088,6 @@ int main(int argc, char** argv) {
         output_binary.write(reinterpret_cast<const char*>(context.rom.data()), context.rom.size());
     }
 
+    SPDLOG_INFO("finished");
     return 0;
 }

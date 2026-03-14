@@ -1,7 +1,8 @@
 #include <algorithm>
 #include <unordered_map>
 
-#include "fmt/format.h"
+#include "spdlog/spdlog.h"
+#include "spdlog/fmt/fmt.h"
 
 #include "mdebug.h"
 
@@ -36,7 +37,7 @@ public:
         // Check the magic value and version number are what we expect.
 
         if (hdrr.magic != MDebug::MAGIC || hdrr.vstamp != 0) {
-            fmt::print(stderr, "Warning: Found an mdebug section with bad magic value or version (magic={} version={}). Skipping.\n", hdrr.magic, hdrr.vstamp);
+            SPDLOG_WARN("Warning: Found an mdebug section with bad magic value or version (magic={} version={}). Skipping.\n", hdrr.magic, hdrr.vstamp);
             return;
         }
 
@@ -563,7 +564,7 @@ void read_mdebug(N64Recomp::Context& context, ELFIO::section* mdebug_section, st
     // Check the magic value and version number are what we expect.
 
     if (hdrr.magic != MDebug::MAGIC || hdrr.vstamp != 0) {
-        fmt::print(stderr, "Warning: Found an mdebug section with bad magic value or version (magic={} version={}). Skipping.\n", hdrr.magic, hdrr.vstamp);
+        SPDLOG_WARN("Warning: Found an mdebug section with bad magic value or version (magic={} version={}). Skipping.\n", hdrr.magic, hdrr.vstamp);
         return;
     }
 

@@ -2,7 +2,7 @@
 #include <algorithm>
 
 #include "rabbitizer.hpp"
-#include "fmt/format.h"
+#include "spdlog/spdlog.h"
 
 #include "recompiler/context.h"
 #include "analysis.h"
@@ -147,11 +147,11 @@ bool analyze_instruction(const rabbitizer::InstructionCpu& instr, const N64Recom
         // If this is a store to the stack, copy the state of rt into the stack at the given offset
         if (base == (int)RegId::GPR_O32_sp) {
             if ((imm & 0b11) != 0) {
-                fmt::print(stderr, "Invalid alignment on offset for sw to stack: {}\n", (int16_t)imm);
+                SPDLOG_ERROR("Invalid alignment on offset for sw to stack: {}\n", (int16_t)imm);
                 return false;
             }
             if (((int16_t)imm) < 0) {
-                fmt::print(stderr, "Negative offset for sw to stack: {}\n", (int16_t)imm);
+                SPDLOG_ERROR("Negative offset for sw to stack: {}\n", (int16_t)imm);
                 return false;
             }
             size_t stack_offset = imm / 4;
@@ -167,11 +167,11 @@ bool analyze_instruction(const rabbitizer::InstructionCpu& instr, const N64Recom
         // If this is a load from the stack, copy the state of the stack at the given offset to rt
         if (base == (int)RegId::GPR_O32_sp) {
             if ((imm & 0b11) != 0) {
-                fmt::print(stderr, "Invalid alignment on offset for lw from stack: {}\n", (int16_t)imm);
+                SPDLOG_ERROR("Invalid alignment on offset for lw from stack: {}\n", (int16_t)imm);
                 return false;
             }
             if (((int16_t)imm) < 0) {
-                fmt::print(stderr, "Negative offset for lw from stack: {}\n", (int16_t)imm);
+                SPDLOG_ERROR("Negative offset for lw from stack: {}\n", (int16_t)imm);
                 return false;
             }
             size_t stack_offset = imm / 4;
@@ -340,11 +340,11 @@ bool N64Recomp::analyze_function(const N64Recomp::Context& context, const N64Rec
         }
 
         if (cur_jtbl.entries.size() == 0) {
-            fmt::print("Failed to determine size of jump table at 0x{:08X} for instruction at 0x{:08X}\n", cur_jtbl.vram, cur_jtbl.jr_vram);
+            SPDLOG_INFO("Failed to determine size of jump table at 0x{:08X} for instruction at 0x{:08X}\n", cur_jtbl.vram, cur_jtbl.jr_vram);
             return false;
         }
 
-        //fmt::print("Jtbl at 0x{:08X} (rom 0x{:08X}) with {} entries used by instr at 0x{:08X}\n", cur_jtbl.vram, cur_jtbl.rom, cur_jtbl.entries.size(), cur_jtbl.jr_vram);
+        //SPDLOG_INFO("Jtbl at 0x{:08X} (rom 0x{:08X}) with {} entries used by instr at 0x{:08X}\n", cur_jtbl.vram, cur_jtbl.rom, cur_jtbl.entries.size(), cur_jtbl.jr_vram);
     }
 
     return true;

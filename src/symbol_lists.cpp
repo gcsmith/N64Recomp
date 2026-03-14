@@ -55,6 +55,12 @@ const std::unordered_set<std::string> N64Recomp::reimplemented_funcs {
     "osPfsFileState",
     "osPfsFindFile",
     "osPfsReadWriteFile",
+    "osPfsChecker",
+    "osPfsGetLabel",
+    "osPfsInit",
+    "osPfsIsPlug",
+    "osPfsNumFiles",
+    "osPfsRepairId",
     // Parallel interface (cartridge, DMA, etc.) functions
     "osCartRomInit",
     "osCreatePiManager",

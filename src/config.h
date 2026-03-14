@@ -45,6 +45,7 @@ namespace N64Recomp {
         bool unpaired_lo16_warnings;
         bool use_mdebug;
         bool trace_mode;
+        bool ignore_unhandled_ops;
         bool allow_exports;
         bool strict_patch_mode;
         std::filesystem::path elf_path;

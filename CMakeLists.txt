@@ -55,8 +55,8 @@ target_include_directories(rabbitizer PUBLIC
 target_include_directories(rabbitizer PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/lib/rabbitizer/tables")
 
-# fmtlib
-add_subdirectory(lib/fmt)
+# spdlog
+add_subdirectory(lib/spdlog)
 
 # tomlplusplus
 set(TOML_ENABLE_FORMATTERS OFF)
@@ -90,7 +90,7 @@ target_include_directories(N64Recomp PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
 )
 
-target_link_libraries(N64Recomp SymbolLists fmt rabbitizer tomlplusplus::tomlplusplus)
+target_link_libraries(N64Recomp SymbolLists spdlog::spdlog rabbitizer tomlplusplus::tomlplusplus)
 
 # N64 recompiler elf parsing
 project(N64RecompElf)
@@ -110,7 +110,7 @@ target_include_directories(N64RecompElf PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/lib/ELFIO"
 )
 
-target_link_libraries(N64RecompElf fmt)
+target_link_libraries(N64RecompElf spdlog::spdlog)
 
 # N64 recompiler executable
 project(N64RecompCLI)
@@ -125,7 +125,7 @@ target_include_directories(N64RecompCLI PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
 )
 
-target_link_libraries(N64RecompCLI fmt rabbitizer tomlplusplus::tomlplusplus N64Recomp N64RecompElf)
+target_link_libraries(N64RecompCLI spdlog::spdlog rabbitizer tomlplusplus::tomlplusplus N64Recomp N64RecompElf)
 set_target_properties(N64RecompCLI PROPERTIES OUTPUT_NAME N64Recomp)
 
 # RSP recompiler
@@ -134,7 +134,7 @@ add_executable(RSPRecomp)
 
 target_include_directories(RSPRecomp PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
-target_link_libraries(RSPRecomp fmt rabbitizer tomlplusplus::tomlplusplus)
+target_link_libraries(RSPRecomp spdlog::spdlog rabbitizer tomlplusplus::tomlplusplus)
 
 target_sources(RSPRecomp PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/RSPRecomp/src/rsp_recomp.cpp)
@@ -153,7 +153,7 @@ target_include_directories(RecompModTool PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/ELFIO
 )
 
-target_link_libraries(RecompModTool fmt tomlplusplus::tomlplusplus N64RecompElf)
+target_link_libraries(RecompModTool spdlog::spdlog tomlplusplus::tomlplusplus N64RecompElf)
 
 # Offline mod recompiler
 project(OfflineModRecomp)
@@ -164,7 +164,7 @@ target_sources(OfflineModRecomp PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/OfflineModRecomp/main.cpp
 )
 
-target_link_libraries(OfflineModRecomp fmt rabbitizer tomlplusplus::tomlplusplus N64Recomp)
+target_link_libraries(OfflineModRecomp spdlog::spdlog rabbitizer tomlplusplus::tomlplusplus N64Recomp)
 
 # Mod combiner
 project(RecompModMerger)

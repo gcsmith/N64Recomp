@@ -1,7 +1,7 @@
 #include <optional>
 
-#include "fmt/format.h"
-// #include "fmt/ostream.h"
+#include "spdlog/spdlog.h"
+#include "spdlog/fmt/ostr.h"
 
 #include "recompiler/context.h"
 #include "elfio/elfio.hpp"
@@ -65,11 +65,11 @@ bool read_symbols(N64Recomp::Context& context, const ELFIO::elfio& elf_file, ELF
             // TODO this never fires, the check is broken due to signedness
             if (elf_config.has_entrypoint && value == elf_config.entrypoint_address && type == ELFIO::STT_FUNC) {
                 if (found_entrypoint_func) {
-                    fmt::print(stderr, "Ambiguous entrypoint: {}\n", name);
+                    SPDLOG_ERROR("Ambiguous entrypoint: {}\n", name);
                     return false;
                 }
                 found_entrypoint_func = true;
-                fmt::print("Found entrypoint, original name: {}\n", name);
+                SPDLOG_INFO("Found entrypoint, original name: {}\n", name);
                 size = 0x50; // dummy size for entrypoints, should cover them all
                 name = "recomp_entrypoint";
             }
@@ -110,6 +110,8 @@ bool read_symbols(N64Recomp::Context& context, const ELFIO::elfio& elf_file, ELF
                     uint32_t num_instructions = type == ELFIO::STT_FUNC ? size / 4 : 0;
                     uint32_t rom_address = static_cast<uint32_t>(section_offset + section.rom_addr);
                     const uint32_t* words = reinterpret_cast<const uint32_t*>(context.rom.data() + rom_address);
+
+                    SPDLOG_INFO("vram={:x} num_instructions={} type={}", vram, num_instructions, type);
 
                     section.function_addrs.push_back(vram);
                     context.functions_by_vram[vram].push_back(context.functions.size());
@@ -177,7 +179,7 @@ bool read_symbols(N64Recomp::Context& context, const ELFIO::elfio& elf_file, ELF
                     target_section_index = N64Recomp::SectionAbsolute;
                 }
                 else if (section_index >= context.sections.size()) {
-                    fmt::print("Symbol \"{}\" not in a valid section ({})\n", name, section_index);
+                    SPDLOG_INFO("Symbol \"{}\" not in a valid section ({})\n", name, section_index);
                 }
 
                 // Move this symbol into the corresponding non-bss section if it's in a bss section and the paired section is relocatable.
@@ -256,7 +258,7 @@ ELFIO::section* read_sections(N64Recomp::Context& context, ELFIO::section*& mdeb
         if (type != ELFIO::SHT_NOBITS && (flags & ELFIO::SHF_ALLOC) && section_size != 0) {
             std::optional<size_t> segment_index = get_segment(segments, section_size, section->get_offset());
             if (!segment_index.has_value()) {
-                fmt::print(stderr, "Could not find segment that section {} belongs to!\n", section->get_name());
+                SPDLOG_ERROR("Could not find segment that section {} belongs to!\n", section->get_name());
                 return nullptr;
             }
 
@@ -276,7 +278,7 @@ ELFIO::section* read_sections(N64Recomp::Context& context, ELFIO::section*& mdeb
     // Iterate over every section to record rom addresses and find the symbol table
     for (const auto& section : elf_file.sections) {
         auto& section_out = context.sections[section->get_index()];
-        //fmt::print("  {}: {} @ 0x{:08X}, 0x{:08X}\n", section->get_index(), section->get_name(), section->get_address(), context.rom.size());
+        //SPDLOG_INFO("  {}: {} @ 0x{:08X}, 0x{:08X}\n", section->get_index(), section->get_name(), section->get_address(), context.rom.size());
         // Set the rom address of this section to the current accumulated ROM size
         section_out.ram_addr = section->get_address();
         section_out.size = section->get_size();
@@ -301,7 +303,7 @@ ELFIO::section* read_sections(N64Recomp::Context& context, ELFIO::section*& mdeb
         if (type == ELFIO::SHT_REL) {
             // If it is, determine the name of the section it relocates
             if (!section_name.starts_with(".rel")) {
-                fmt::print(stderr, "Could not determine corresponding section for reloc section {}\n", section_name.c_str());
+                SPDLOG_ERROR("Could not determine corresponding section for reloc section {}\n", section_name.c_str());
                 return nullptr;
             }
 
@@ -345,7 +347,7 @@ ELFIO::section* read_sections(N64Recomp::Context& context, ELFIO::section*& mdeb
     }
 
     if (symtab_section == nullptr) {
-        fmt::print(stderr, "No symtab section found\n");
+        SPDLOG_ERROR("No symtab section found\n");
         return nullptr;
     }
 
@@ -428,7 +430,7 @@ ELFIO::section* read_sections(N64Recomp::Context& context, ELFIO::section*& mdeb
                         // Undefined sym, check the reference symbols.
                         N64Recomp::SymbolReference sym_ref;
                         if (!context.find_reference_symbol(rel_symbol_name, sym_ref)) {
-                            fmt::print(stderr, "Undefined symbol: {}, not found in input or reference symbols!\n",
+                            SPDLOG_ERROR("Undefined symbol: {}, not found in input or reference symbols!\n",
                                 rel_symbol_name);
                             return nullptr;
                         }
@@ -444,7 +446,7 @@ ELFIO::section* read_sections(N64Recomp::Context& context, ELFIO::section*& mdeb
                         bool target_section_relocatable = context.is_reference_section_relocatable(reloc_out.target_section);
 
                         if (reloc_out.type == N64Recomp::RelocType::R_MIPS_32 && target_section_relocatable) {
-                            fmt::print(stderr, "Cannot reference {} in a statically initialized variable as it's defined in a relocatable section!\n",
+                            SPDLOG_ERROR("Cannot reference {} in a statically initialized variable as it's defined in a relocatable section!\n",
                                 rel_symbol_name);
                             return nullptr;
                         }
@@ -459,7 +461,7 @@ ELFIO::section* read_sections(N64Recomp::Context& context, ELFIO::section*& mdeb
                         reloc_out.target_section = rel_symbol_section_index;
                         // Handle special sections.
                         if (rel_symbol_section_index >= context.sections.size()) {
-                            fmt::print(stderr, "Reloc {} references symbol {} which is in an unknown section 0x{:04X}!\n",
+                            SPDLOG_ERROR("Reloc {} references symbol {} which is in an unknown section 0x{:04X}!\n",
                                 i, rel_symbol_name, rel_symbol_section_index);
                             return nullptr;
                         }
@@ -473,7 +475,7 @@ ELFIO::section* read_sections(N64Recomp::Context& context, ELFIO::section*& mdeb
                         reloc_out.target_section_offset = full_immediate + rel_symbol_offset - rel_section_vram;
                         if (prev_hi_count != 0) {
                             if (prev_hi_symbol != rel_symbol) {
-                                fmt::print(stderr, "Paired HI16 and LO16 relocations have different symbols\n"
+                                SPDLOG_ERROR("Paired HI16 and LO16 relocations have different symbols\n"
                                                     "  LO16 reloc index {} in section {} referencing symbol {} with offset 0x{:08X}\n",
                                     i, section_out.name, reloc_out.symbol_index, reloc_out.address);
                                 return nullptr;
@@ -492,12 +494,12 @@ ELFIO::section* read_sections(N64Recomp::Context& context, ELFIO::section*& mdeb
                                 if (prev_lo) {
                                     // Don't warn if multiple LO16 in a row reference the same symbol, as some linkers will use this behavior.
                                     if (prev_hi_symbol != rel_symbol) {
-                                        fmt::print(stderr, "[WARN] LO16 reloc index {} in section {} referencing symbol {} with offset 0x{:08X} follows LO16 with different symbol\n",
+                                        SPDLOG_ERROR("[WARN] LO16 reloc index {} in section {} referencing symbol {} with offset 0x{:08X} follows LO16 with different symbol\n",
                                             i, section_out.name, reloc_out.symbol_index, reloc_out.address);
                                     }
                                 }
                                 else {
-                                    fmt::print(stderr, "[WARN] Unpaired LO16 reloc index {} in section {} referencing symbol {} with offset 0x{:08X}\n",
+                                    SPDLOG_ERROR("[WARN] Unpaired LO16 reloc index {} in section {} referencing symbol {} with offset 0x{:08X}\n",
                                         i, section_out.name, reloc_out.symbol_index, reloc_out.address);
                                 }
                             }
@@ -513,7 +515,7 @@ ELFIO::section* read_sections(N64Recomp::Context& context, ELFIO::section*& mdeb
                             // This is an invalid elf as the MIPS System V ABI documentation states:
                             // "Each relocation type of R_MIPS_HI16 must have an associated R_MIPS_LO16 entry
                             // immediately following it in the list of relocations."
-                            fmt::print(stderr, "Unpaired HI16 reloc index {} in section {} referencing symbol {} with offset 0x{:08X}\n",
+                            SPDLOG_ERROR("Unpaired HI16 reloc index {} in section {} referencing symbol {} with offset 0x{:08X}\n",
                                 i - 1, section_out.name, section_out.relocs[i - 1].symbol_index, section_out.relocs[i - 1].address);
                             return nullptr;
                         }
@@ -530,7 +532,7 @@ ELFIO::section* read_sections(N64Recomp::Context& context, ELFIO::section*& mdeb
                         // HI16 that follows another HI16, ensure they reference the same symbol.
                         else {
                             if (prev_hi_symbol != rel_symbol) {
-                                fmt::print(stderr, "HI16 reloc (index {} symbol {} offset 0x{:08X}) follows another HI16 reloc with a different symbol (index {} symbol {} offset 0x{:08X}) in section {}\n",
+                                SPDLOG_ERROR("HI16 reloc (index {} symbol {} offset 0x{:08X}) follows another HI16 reloc with a different symbol (index {} symbol {} offset 0x{:08X}) in section {}\n",
                                     i, rel_symbol, section_out.relocs[i].address,
                                     i - 1, prev_hi_symbol, section_out.relocs[i - 1].address,
                                     section_out.name);
@@ -629,17 +631,17 @@ bool N64Recomp::Context::from_elf_file(const std::filesystem::path& elf_file_pat
     ELFIO::elfio elf_file;
 
     if (!elf_file.load(elf_file_path.string())) {
-        fmt::print("Elf file not found\n");
+        SPDLOG_ERROR("Elf file not found\n");
         return false;
     }
 
     if (elf_file.get_class() != ELFIO::ELFCLASS32) {
-        fmt::print("Incorrect elf class\n");
+        SPDLOG_ERROR("Incorrect elf class\n");
         return false;
     }
 
     if (elf_file.get_encoding() != ELFIO::ELFDATA2MSB) {
-        fmt::print("Incorrect elf endianness\n");
+        SPDLOG_ERROR("Incorrect elf endianness\n");
         return false;
     }
 
@@ -660,11 +662,11 @@ bool N64Recomp::Context::from_elf_file(const std::filesystem::path& elf_file_pat
     // Process an mdebug section for static symbols. The presence of an mdebug section in the input is optional.
     if (elf_config.use_mdebug) {
         if (mdebug_section == nullptr) {
-            fmt::print("\"use_mdebug\" set to true in config, but no mdebug section is present in the elf!\n");
+            SPDLOG_ERROR("\"use_mdebug\" set to true in config, but no mdebug section is present in the elf!\n");
             return false;
         }
         if (!N64Recomp::MDebug::parse_mdebug(elf_config, mdebug_section->get_data(), static_cast<uint32_t>(mdebug_section->get_offset()), out, data_syms_out)) {
-            fmt::print("Failed to parse mdebug section\n");
+            SPDLOG_ERROR("Failed to parse mdebug section\n");
             return false;
         }
     }

@@ -3,8 +3,8 @@
 #include <unordered_map>
 #include <cmath>
 
-#include "fmt/format.h"
-#include "fmt/ostream.h"
+#include "spdlog/spdlog.h"
+#include "spdlog/fmt/fmt.h"
 
 #include "recompiler/live_recompiler.h"
 #include "recomp.h"

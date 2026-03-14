@@ -8,8 +8,8 @@
 #include <iostream>
 #include <filesystem>
 #include "rabbitizer.hpp"
-#include "fmt/format.h"
-#include "fmt/ostream.h"
+#include "spdlog/spdlog.h"
+#include "spdlog/fmt/ostr.h"
 #include <toml++/toml.hpp>
 
 using InstrId = rabbitizer::InstrId::UniqueId;
@@ -134,8 +134,8 @@ uint32_t expected_c0_reg_value(int cop0_reg) {
     case Cop0Reg::RSP_COP0_DPC_STATUS:
         return 0; // Good enough for the microcodes that would be recompiled (i.e. non-graphics ones)
     default:
-        fmt::print(stderr, "Unhandled mfc0: {}\n", cop0_reg);
-        throw std::runtime_error("Unhandled mfc0");
+        SPDLOG_ERROR("Unhandled mfc0: {}", cop0_reg);
+        // throw std::runtime_error("Unhandled mfc0");
         return 0;
     }
 }
@@ -155,8 +155,9 @@ std::string_view c0_reg_write_action(int cop0_reg) {
     case Cop0Reg::RSP_COP0_SP_WR_LEN:
         return "DO_DMA_WRITE";
     default:
-        fmt::print(stderr, "Unhandled mtc0: {}\n", cop0_reg);
-        throw std::runtime_error("Unhandled mtc0");
+        SPDLOG_ERROR("Unhandled mtc0: {}", cop0_reg);
+        // throw std::runtime_error("Unhandled mtc0");
+        return "";
     }
 
 }
@@ -227,6 +228,8 @@ bool process_instruction(size_t instr_index, const std::vector<rabbitizer::Instr
 
     uint32_t instr_vram = instr.getVram();
     InstrId instr_id = instr.getUniqueId();
+
+    SPDLOG_INFO("process_instruction(instr_index={}) at vram={:x} : {}", instr_index, instr_vram, instr.disassemble(0));
 
     // Skip labels if we're duplicating an instruction into a delay slot
     if (!in_delay_slot) {
@@ -553,8 +556,8 @@ bool process_instruction(size_t instr_index, const std::vector<rabbitizer::Instr
                 break;
             }
         default:
-            fmt::print(stderr, "Unhandled instruction: {}\n", instr.getOpcodeName());
-            assert(false);
+            SPDLOG_ERROR("Unhandled instruction: {}", instr.getOpcodeName());
+            // assert(false);
             return false;
         }
     }
@@ -1086,13 +1089,13 @@ void create_function(const std::string& function_name, std::ofstream& output_fil
 
 int main(int argc, const char** argv) {
     if (argc != 2) {
-        fmt::print("Usage: {} [config file]\n", argv[0]);
+        SPDLOG_INFO("Usage: {} [config file]", argv[0]);
         std::exit(EXIT_SUCCESS);
     }
 
     RSPRecompilerConfig config;
     if (!read_config(std::filesystem::path{argv[1]}, config)) {
-        fmt::print("Failed to parse config file {}\n", argv[0]);
+        SPDLOG_ERROR("Failed to parse config file {}", argv[0]);
         std::exit(EXIT_FAILURE);
     }
 
@@ -1103,7 +1106,7 @@ int main(int argc, const char** argv) {
         std::ifstream rom_file{ config.rom_file_path, std::ios_base::binary };
 
         if (!rom_file.good()) {
-            fmt::print(stderr, "Failed to open rom file\n");
+            SPDLOG_ERROR("Failed to open rom file");
             return EXIT_FAILURE;
         }
 

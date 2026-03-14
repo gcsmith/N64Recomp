@@ -5,8 +5,8 @@
 #include <numeric>
 #include <cctype>
 #include <cstdlib>
-#include "fmt/format.h"
-#include "fmt/ostream.h"
+#include "spdlog/spdlog.h"
+#include "spdlog/fmt/ostr.h"
 #include "recompiler/context.h"
 #include <toml++/toml.hpp>
 
@@ -696,14 +696,14 @@ N64Recomp::Context build_mod_context(const N64Recomp::Context& input_context, bo
 
                     // Check that the function being patched exists in the original reference symbols.
                     if (!original_func_exists) {
-                        fmt::print(stderr, "Function {} is marked as a patch but doesn't exist in the original ROM.\n", cur_func.name);
+                        SPDLOG_ERROR("Function {} is marked as a patch but doesn't exist in the original ROM.\n", cur_func.name);
                         return {};
                     }
 
                     // Check that the reference symbol is actually a function.
                     const auto& reference_symbol = input_context.get_reference_symbol(cur_reference);
                     if (!reference_symbol.is_function) {
-                        fmt::print(stderr, "Function {0} is marked as a patch, but {0} was a variable in the original ROM.\n", cur_func.name);
+                        SPDLOG_ERROR("Function {0} is marked as a patch, but {0} was a variable in the original ROM.\n", cur_func.name);
                         return {};
                     }
 
@@ -732,14 +732,14 @@ N64Recomp::Context build_mod_context(const N64Recomp::Context& input_context, bo
 
                     // Check that the function being patched exists in the original reference symbols.
                     if (!original_func_exists) {
-                        fmt::print(stderr, "Function {} hooks a function ({}) that doesn't exist in the original ROM.\n", cur_func.name, hooked_function_name);
+                        SPDLOG_ERROR("Function {} hooks a function ({}) that doesn't exist in the original ROM.\n", cur_func.name, hooked_function_name);
                         return {};
                     }
 
                     // Check that the reference symbol is actually a function.
                     const auto& reference_symbol = input_context.get_reference_symbol(cur_reference);
                     if (!reference_symbol.is_function) {
-                        fmt::print(stderr, "Function {0} hooks {1}, but {1} was a variable in the original ROM.\n", cur_func.name, hooked_function_name);
+                        SPDLOG_ERROR("Function {0} hooks {1}, but {1} was a variable in the original ROM.\n", cur_func.name, hooked_function_name);
                         return {};
                     }
 
@@ -768,27 +768,27 @@ N64Recomp::Context build_mod_context(const N64Recomp::Context& input_context, bo
                 if (callback_section) {
                     std::string dependency_name, event_name;
                     if (!parse_callback_name(std::string_view{ cur_section.name }.substr(N64Recomp::CallbackSectionPrefix.size()), dependency_name, event_name)) {
-                        fmt::print(stderr, "Invalid mod name or event name for callback function {}.\n",
+                        SPDLOG_ERROR("Invalid mod name or event name for callback function {}.\n",
                             cur_func.name);
                         return {};
                     }
 
                     size_t dependency_index;
                     if (!ret.find_dependency(dependency_name, dependency_index)) {
-                        fmt::print(stderr, "Failed to register callback {} to event {} from mod {} as the mod is not a registered dependency.\n",
+                        SPDLOG_ERROR("Failed to register callback {} to event {} from mod {} as the mod is not a registered dependency.\n",
                             cur_func.name, event_name, dependency_name);
                         return {};
                     }
 
                     size_t event_index;
                     if (!ret.add_dependency_event(event_name, dependency_index, event_index)) {
-                        fmt::print(stderr, "Internal error: Failed to register event {} for dependency {}. Please report this issue.\n",
+                        SPDLOG_ERROR("Internal error: Failed to register event {} for dependency {}. Please report this issue.\n",
                             event_name, dependency_name);
                         return {};
                     }
 
                     if (!ret.add_callback(event_index, output_func_index)) {
-                        fmt::print(stderr, "Internal error: Failed to add callback {} to event {} in dependency {}. Please report this issue.\n",
+                        SPDLOG_ERROR("Internal error: Failed to add callback {} to event {} in dependency {}. Please report this issue.\n",
                             cur_func.name, event_name, dependency_name);
                         return {};
                     }
@@ -854,7 +854,7 @@ N64Recomp::Context build_mod_context(const N64Recomp::Context& input_context, bo
                                 reloc_word |= reloc_target_address & 0xFFFF;
                                 break;
                             default:
-                                fmt::print(stderr, "Unsupported or unknown relocation type {} in reloc at address 0x{:08X} in section {}.\n",
+                                SPDLOG_ERROR("Unsupported or unknown relocation type {} in reloc at address 0x{:08X} in section {}.\n",
                                     (int)cur_reloc.type, cur_reloc.address, cur_section.name);
                                 return {};
                         }
@@ -874,7 +874,7 @@ N64Recomp::Context build_mod_context(const N64Recomp::Context& input_context, bo
                     // to the event symbol, creating the event symbol if necessary.
                     if (target_section.name == N64Recomp::EventSectionName) {
                         if (cur_reloc.type != N64Recomp::RelocType::R_MIPS_26) {
-                            fmt::print(stderr, "Symbol {} is an event and cannot have its address taken.\n",
+                            SPDLOG_ERROR("Symbol {} is an event and cannot have its address taken.\n",
                                 cur_section.name);
                             return {};
                         }
@@ -882,7 +882,7 @@ N64Recomp::Context build_mod_context(const N64Recomp::Context& input_context, bo
                         uint32_t target_function_vram = cur_reloc.target_section_offset + target_section.ram_addr;
                         size_t target_function_index = input_context.find_function_by_vram_section(target_function_vram, cur_reloc.target_section);
                         if (target_function_index == (size_t)-1) {
-                            fmt::print(stderr, "Internal error: Failed to find event symbol in section {} with offset 0x{:08X} (vram 0x{:08X}). Please report this issue.\n",
+                            SPDLOG_ERROR("Internal error: Failed to find event symbol in section {} with offset 0x{:08X} (vram 0x{:08X}). Please report this issue.\n",
                                 target_section.name, cur_reloc.target_section_offset, target_function_vram);
                             return {};
                         }
@@ -911,7 +911,7 @@ N64Recomp::Context build_mod_context(const N64Recomp::Context& input_context, bo
                     // to the import symbol, creating the import symbol if necessary.
                     else if (target_section.name.starts_with(N64Recomp::ImportSectionPrefix)) {
                         if (cur_reloc.type != N64Recomp::RelocType::R_MIPS_26) {
-                            fmt::print(stderr, "Symbol {} is an import and cannot have its address taken.\n",
+                            SPDLOG_ERROR("Symbol {} is an import and cannot have its address taken.\n",
                                 cur_section.name);
                             return {};
                         }
@@ -919,7 +919,7 @@ N64Recomp::Context build_mod_context(const N64Recomp::Context& input_context, bo
                         uint32_t target_function_vram = cur_reloc.target_section_offset + target_section.ram_addr;
                         size_t target_function_index = input_context.find_function_by_vram_section(target_function_vram, cur_reloc.target_section);
                         if (target_function_index == (size_t)-1) {
-                            fmt::print(stderr, "Internal error: Failed to find import symbol in section {} with offset 0x{:08X} (vram 0x{:08X}). Please report this issue.\n",
+                            SPDLOG_ERROR("Internal error: Failed to find import symbol in section {} with offset 0x{:08X} (vram 0x{:08X}). Please report this issue.\n",
                                 target_section.name, cur_reloc.target_section_offset, target_function_vram);
                             return {};
                         }
@@ -930,7 +930,7 @@ N64Recomp::Context build_mod_context(const N64Recomp::Context& input_context, bo
                         std::string dependency_name = target_section.name.substr(N64Recomp::ImportSectionPrefix.size());
                         size_t dependency_index;
                         if (!ret.find_dependency(dependency_name, dependency_index)) {
-                            fmt::print(stderr, "Failed to import function {} from mod {} as the mod is not a registered dependency.\n",
+                            SPDLOG_ERROR("Failed to import function {} from mod {} as the mod is not a registered dependency.\n",
                                 target_function.name, dependency_name);
                             return {};
                         }
@@ -958,7 +958,7 @@ N64Recomp::Context build_mod_context(const N64Recomp::Context& input_context, bo
                         uint32_t target_rom_to_ram = target_section.ram_addr - target_section.rom_addr;
                         bool is_noload = target_section.rom_addr == (uint32_t)-1;
                         if (!is_noload && target_rom_to_ram != cur_rom_to_ram) {
-                            fmt::print(stderr, "Reloc at address 0x{:08X} in section {} points to a different section.\n",
+                            SPDLOG_ERROR("Reloc at address 0x{:08X} in section {} points to a different section.\n",
                                 cur_reloc.address, cur_section.name);
                             return {};
                         }
@@ -985,7 +985,7 @@ N64Recomp::Context build_mod_context(const N64Recomp::Context& input_context, bo
                 uint16_t input_section_index = reloc.target_section;
                 auto find_it = input_section_to_output_section.find(input_section_index);
                 if (find_it == input_section_to_output_section.end()) {
-                    fmt::print(stderr, "Reloc at address 0x{:08X} references section {}, which didn't get mapped to an output section\n",
+                    SPDLOG_ERROR("Reloc at address 0x{:08X} references section {}, which didn't get mapped to an output section\n",
                         reloc.address, input_context.sections[input_section_index].name);
                     return {};
                 }
@@ -1033,7 +1033,7 @@ bool create_mod_zip(const std::filesystem::path& output_dir, const ModConfig& co
     command_string_buffer[command_string.size()] = '\x00';
 
     if (!CreateProcessA(NULL, command_string_buffer.data(), NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
-        fmt::print(stderr, "Process creation failed {}\n", GetLastError());
+        SPDLOG_ERROR("Process creation failed {}\n", GetLastError());
         return false;
     }
 
@@ -1046,14 +1046,14 @@ bool create_mod_zip(const std::filesystem::path& output_dir, const ModConfig& co
     CloseHandle(pi.hThread);
 
     if (ec != EXIT_SUCCESS) {
-        fmt::print(stderr, "Compress-Archive failed with exit code {}\n", ec);
+        SPDLOG_ERROR("Compress-Archive failed with exit code {}\n", ec);
         return false;
     }
 
     std::error_code rename_ec;
     std::filesystem::rename(temp_zip_path, output_path, rename_ec);
     if (rename_ec != std::error_code{}) {
-        fmt::print(stderr, "Failed to rename temporary zip to output path\n");
+        SPDLOG_ERROR("Failed to rename temporary zip to output path\n");
         return false;
     }
 #else
@@ -1098,13 +1098,13 @@ bool create_mod_zip(const std::filesystem::path& output_dir, const ModConfig& co
     // Fork-exec to run zip.
     pid_t pid = fork();
     if (pid == -1) {
-        fmt::print(stderr, "Failed to run \"zip\"\n");
+        SPDLOG_ERROR("Failed to run \"zip\"\n");
         return false;
     }
     else if (pid == 0) {
         // This is the child process, so exec zip with the arguments.
         if (execvp(arg_pointers[0], arg_pointers.data()) == -1) {
-            fmt::print(stderr, "Failed to run \"zip\" ({})\n", errno);
+            SPDLOG_ERROR("Failed to run \"zip\" ({})\n", errno);
             exit(-1);
         }
     }
@@ -1112,11 +1112,11 @@ bool create_mod_zip(const std::filesystem::path& output_dir, const ModConfig& co
         // This is the parent process, so wait for the child process to complete and check its exit code.
         int status;
         if (waitpid(pid, &status, 0) == (pid_t)-1) {
-            fmt::print(stderr, "Waiting for \"zip\" failed\n");
+            SPDLOG_ERROR("Waiting for \"zip\" failed\n");
             return false;
         }
         if (status != EXIT_SUCCESS) {
-            fmt::print(stderr, "\"zip\" failed with exit code {}\n", status);
+            SPDLOG_ERROR("\"zip\" failed with exit code {}\n", status);
             return false;
         }
     }
@@ -1135,19 +1135,19 @@ int main(int argc, const char** argv) {
     std::filesystem::path output_dir{ argv[2] };
 
     if (!std::filesystem::exists(output_dir)) {
-        fmt::print(stderr, "Specified output folder does not exist!\n");
+        SPDLOG_ERROR("Specified output folder does not exist!\n");
         return EXIT_FAILURE;
     }
 
     if (!std::filesystem::is_directory(output_dir)) {
-        fmt::print(stderr, "Specified output folder is not a folder!\n");
+        SPDLOG_ERROR("Specified output folder is not a folder!\n");
         return EXIT_FAILURE;
     }
 
     ModConfig config = parse_mod_config(argv[1], config_good);
 
     if (!config_good) {
-        fmt::print(stderr, "Failed to read mod config file: {}\n", argv[1]);
+        SPDLOG_ERROR("Failed to read mod config file: {}\n", argv[1]);
         return EXIT_FAILURE;
     }
 
@@ -1159,20 +1159,20 @@ int main(int argc, const char** argv) {
         std::vector<uint8_t> dummy_rom{};
         N64Recomp::Context reference_context{};
         if (!N64Recomp::Context::from_symbol_file(config.inputs.func_reference_syms_file_path, std::move(dummy_rom), reference_context, false)) {
-            fmt::print(stderr, "Failed to load provided function reference symbol file\n");
+            SPDLOG_ERROR("Failed to load provided function reference symbol file\n");
             return EXIT_FAILURE;
         }
 
         // Use the reference context to build a reference symbol list for the actual context.
         if (!context.import_reference_context(reference_context)) {
-            fmt::print(stderr, "Internal error: failed to import reference context. Please report this issue.\n");
+            SPDLOG_ERROR("Internal error: failed to import reference context. Please report this issue.\n");
             return EXIT_FAILURE;
         }
     }
 
     for (const std::filesystem::path& cur_data_sym_path : config.inputs.data_reference_syms_file_paths) {
         if (!context.read_data_reference_syms(cur_data_sym_path)) {
-            fmt::print(stderr, "Failed to load provided data reference symbol file: {}\n", cur_data_sym_path.string());
+            SPDLOG_ERROR("Failed to load provided data reference symbol file: {}\n", cur_data_sym_path.string());
             return EXIT_FAILURE;
         }
     }
@@ -1197,25 +1197,25 @@ int main(int argc, const char** argv) {
     bool elf_good = N64Recomp::Context::from_elf_file(config.inputs.elf_path, context, elf_config, false, dummy_syms_map, dummy_found_entrypoint);
 
     if (!elf_good) {
-        fmt::print(stderr, "Failed to parse mod elf\n");
+        SPDLOG_ERROR("Failed to parse mod elf\n");
         return EXIT_FAILURE;
     }
 
     if (context.sections.size() == 0) {
-        fmt::print(stderr, "No sections found in mod elf\n");
+        SPDLOG_ERROR("No sections found in mod elf\n");
         return EXIT_FAILURE;
     }
 
     bool mod_context_good;
     N64Recomp::Context mod_context = build_mod_context(context, mod_context_good);
     if (!mod_context_good) {
-        fmt::print(stderr, "Failed to create mod context\n");
+        SPDLOG_ERROR("Failed to create mod context\n");
         return EXIT_FAILURE;
     }
 
     std::vector<uint8_t> symbols_bin = N64Recomp::symbols_to_bin_v1(mod_context);
     if (symbols_bin.empty()) {
-        fmt::print(stderr, "Failed to create symbol file\n");
+        SPDLOG_ERROR("Failed to create symbol file\n");
         return EXIT_FAILURE;
     }
 
@@ -1240,7 +1240,7 @@ int main(int argc, const char** argv) {
 
     // Create the zip.
     if (!create_mod_zip(output_dir, config)) {
-        fmt::print(stderr, "Failed to create mod file.\n");
+        SPDLOG_ERROR("Failed to create mod file.\n");
         return EXIT_FAILURE;
     }
 

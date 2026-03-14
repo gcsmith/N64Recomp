@@ -1,7 +1,7 @@
 #include <iostream>
 
 #include <toml++/toml.hpp>
-#include "fmt/format.h"
+#include "spdlog/spdlog.h"
 #include "config.h"
 #include "recompiler/context.h"
 
@@ -474,6 +474,15 @@ N64Recomp::Config::Config(const char* path) {
         }
         else {
             trace_mode = false;
+        }
+
+        // Ignore unhandled operations
+        std::optional<bool> ignore_unhandled_ops_opt = input_data["ignore_unhandled_ops"].value<bool>();
+        if (ignore_unhandled_ops_opt.has_value()) {
+            ignore_unhandled_ops = ignore_unhandled_ops_opt.value();
+        }
+        else {
+            ignore_unhandled_ops = false;
         }
 
         // Function reference symbols file (optional)

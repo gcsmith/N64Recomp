@@ -5,8 +5,9 @@
 #include <cassert>
 
 #include "rabbitizer.hpp"
-#include "fmt/format.h"
-#include "fmt/ostream.h"
+#include "spdlog/spdlog.h"
+#include "spdlog/fmt/fmt.h"
+#include "spdlog/fmt/ostr.h"
 
 #include "recompiler/context.h"
 #include "analysis.h"
@@ -283,14 +284,14 @@ bool process_instruction(GeneratorType& generator, const N64Recomp::Context& con
             size_t matched_func_index = (size_t)-1;
             if (reloc_reference_symbol != (size_t)-1) {
                 if (reloc_type != N64Recomp::RelocType::R_MIPS_26) {
-                    fmt::print(stderr, "Unsupported reloc type {} on jal instruction in {}\n", (int)reloc_type, func.name);
+                    SPDLOG_ERROR("Unsupported reloc type {} on jal instruction in {}", (int)reloc_type, func.name);
                     return false;
                 }
 
                 if (!context.skip_validating_reference_symbols) {
                     const auto& ref_symbol = context.get_reference_symbol(reloc_section, reloc_reference_symbol);
                     if (ref_symbol.section_offset != reloc_target_section_offset) {
-                        fmt::print(stderr, "Function {} uses a MIPS_R_26 addend, which is not supported yet\n", func.name);
+                        SPDLOG_ERROR("Function {} uses a MIPS_R_26 addend, which is not supported yet", func.name);
                         return false;
                     }
                 }
@@ -305,7 +306,7 @@ bool process_instruction(GeneratorType& generator, const N64Recomp::Context& con
 
                 switch (jal_result) {
                     case JalResolutionResult::NoMatch:
-                        fmt::print(stderr, "No function found for jal target: 0x{:08X}\n", target_func_vram);
+                        SPDLOG_ERROR("No function found for jal target: 0x{:08X}", target_func_vram);
                         return false;
                     case JalResolutionResult::Match:
                         jal_target_name = context.functions[matched_func_index].name;
@@ -319,7 +320,7 @@ bool process_instruction(GeneratorType& generator, const N64Recomp::Context& con
                     case JalResolutionResult::Ambiguous:
                         // Print a warning if lookup isn't forced for all non-reloc function calls.
                         if (!context.use_lookup_for_all_function_calls) {
-                            fmt::print(stderr, "[Info] Ambiguous jal target 0x{:08X} in function {}, falling back to function lookup\n", target_func_vram, func.name);
+                            SPDLOG_INFO("Ambiguous jal target 0x{:08X} in function {}, falling back to function lookup", target_func_vram, func.name);
                         }
                         // Relocation isn't necessary for jumps inside a relocatable section, as this code path will never run if the target vram
                         // is in the current function's section (see the branch for `in_current_section` above).
@@ -327,7 +328,7 @@ bool process_instruction(GeneratorType& generator, const N64Recomp::Context& con
                         call_by_lookup = true;
                         break;
                     case JalResolutionResult::Error:
-                        fmt::print(stderr, "Internal error when resolving jal to address 0x{:08X} in function {}. Please report this issue.\n", target_func_vram, func.name);
+                        SPDLOG_ERROR("Internal error when resolving jal to address 0x{:08X} in function {}. Please report this issue.", target_func_vram, func.name);
                         return false;
                 }
             }
@@ -362,7 +363,7 @@ bool process_instruction(GeneratorType& generator, const N64Recomp::Context& con
             // If the branch target is the start of some known function, this can be handled as a tail call.
             // FIXME: how to deal with static functions?
             if (context.functions_by_vram.find(branch_target) != context.functions_by_vram.end()) {
-                fmt::print("Tail call in {} to 0x{:08X}\n", func.name, branch_target);
+                SPDLOG_INFO("Tail call in {} to 0x{:08X}", func.name, branch_target);
                 if (!print_func_call_by_address(branch_target, true, true)) {
                     return false;
                 }
@@ -374,7 +375,7 @@ bool process_instruction(GeneratorType& generator, const N64Recomp::Context& con
                 return true;
             }
 
-            fmt::print(stderr, "[Warn] Function {} is branching outside of the function (to 0x{:08X})\n", func.name, branch_target);
+            SPDLOG_WARN("Function {} is branching outside of the function (to 0x{:08X})", func.name, branch_target);
         }
 
         if (!process_delay_slot(true)) {
@@ -424,7 +425,7 @@ bool process_instruction(GeneratorType& generator, const N64Recomp::Context& con
                 generator.emit_cop0_status_read(rt);
                 break;
             default:
-                fmt::print(stderr, "Unhandled cop0 register in mfc0: {}\n", (int)reg);
+                SPDLOG_ERROR("Unhandled cop0 register in mfc0: {}", (int)reg);
                 return false;
             }
             break;
@@ -438,7 +439,7 @@ bool process_instruction(GeneratorType& generator, const N64Recomp::Context& con
                 generator.emit_cop0_status_write(rt);
                 break;
             default:
-                fmt::print(stderr, "Unhandled cop0 register in mtc0: {}\n", (int)reg);
+                SPDLOG_ERROR("Unhandled cop0 register in mtc0: {}", (int)reg);
                 return false;
             }
             break;
@@ -480,7 +481,7 @@ bool process_instruction(GeneratorType& generator, const N64Recomp::Context& con
     case InstrId::cpu_jalr:
         // jalr can only be handled with $ra as the return address register
         if (rd != (int)rabbitizer::Registers::Cpu::GprO32::GPR_O32_ra) {
-            fmt::print(stderr, "Invalid return address reg for jalr: f{}\n", rd);
+            SPDLOG_ERROR("Invalid return address reg for jalr: f{}", rd);
             return false;
         }
         needs_link_branch = true;
@@ -511,7 +512,7 @@ bool process_instruction(GeneratorType& generator, const N64Recomp::Context& con
             // ```
             // FIXME: how to deal with static functions?
             else if (context.functions_by_vram.find(branch_target) != context.functions_by_vram.end()) {
-                fmt::print("[Info] Tail call in {} to 0x{:08X}\n", func.name, branch_target);
+                SPDLOG_INFO("[Info] Tail call in {} to 0x{:08X}", func.name, branch_target);
                 if (!print_func_call_by_address(branch_target, true)) {
                     return false;
                 }
@@ -519,7 +520,7 @@ bool process_instruction(GeneratorType& generator, const N64Recomp::Context& con
                 generator.emit_return(context, func_index);
             }
             else {
-                fmt::print(stderr, "Unhandled branch in {} at 0x{:08X} to 0x{:08X}\n", func.name, instr_vram, branch_target);
+                SPDLOG_ERROR("Unhandled branch in {} at 0x{:08X} to 0x{:08X}", func.name, instr_vram, branch_target);
                 return false;
             }
         }
@@ -553,7 +554,7 @@ bool process_instruction(GeneratorType& generator, const N64Recomp::Context& con
                 break;
             }
 
-            fmt::print("[Info] Indirect tail call in {}\n", func.name);
+            SPDLOG_INFO("[Info] Indirect tail call in {}", func.name);
             print_func_call_by_register(rs);
             print_indent();
             generator.emit_return(context, func_index);
@@ -575,7 +576,7 @@ bool process_instruction(GeneratorType& generator, const N64Recomp::Context& con
     // Cop1 rounding mode
     case InstrId::cpu_ctc1:
         if (cop1_cs != 31) {
-            fmt::print(stderr, "Invalid FP control register for ctc1: {}\n", cop1_cs);
+            SPDLOG_ERROR("Invalid FP control register for ctc1: {}", cop1_cs);
             return false;
         }
         print_indent();
@@ -583,7 +584,7 @@ bool process_instruction(GeneratorType& generator, const N64Recomp::Context& con
         break;
     case InstrId::cpu_cfc1:
         if (cop1_cs != 31) {
-            fmt::print(stderr, "Invalid FP control register for cfc1: {}\n", cop1_cs);
+            SPDLOG_ERROR("Invalid FP control register for cfc1: {}", cop1_cs);
             return false;
         }
         print_indent();
@@ -746,7 +747,7 @@ bool process_instruction(GeneratorType& generator, const N64Recomp::Context& con
     }
 
     if (!handled) {
-        fmt::print(stderr, "Unhandled instruction: {}\n", instr.getOpcodeName());
+        SPDLOG_ERROR("Unhandled instruction: {} at vram 0x{:08X} rom 0x{:08X}", instr.getOpcodeName(), func.vram, func.rom);
         return false;
     }
 
@@ -762,7 +763,7 @@ bool process_instruction(GeneratorType& generator, const N64Recomp::Context& con
 template <typename GeneratorType>
 bool recompile_function_impl(GeneratorType& generator, const N64Recomp::Context& context, size_t func_index, std::ostream& output_file, std::span<std::vector<uint32_t>> static_funcs_out, bool tag_reference_relocs) {
     const N64Recomp::Function& func = context.functions[func_index];
-    //fmt::print("Recompiling {}\n", func.name);
+    //SPDLOG_INFO("Recompiling {}", func.name);
     std::vector<rabbitizer::InstructionCpu> instructions;
 
     generator.emit_function_start(func.name, func_index);
@@ -801,7 +802,7 @@ bool recompile_function_impl(GeneratorType& generator, const N64Recomp::Context&
         // Analyze function
         N64Recomp::FunctionStats stats{};
         if (!N64Recomp::analyze_function(context, func, instructions, stats)) {
-            fmt::print(stderr, "Failed to analyze {}\n", func.name);
+            SPDLOG_ERROR("Failed to analyze {}", func.name);
             output_file.clear();
             return false;
         }
@@ -845,9 +846,11 @@ bool recompile_function_impl(GeneratorType& generator, const N64Recomp::Context&
 
             // Process the current instruction and check for errors
             if (process_instruction(generator, context, func, func_index, stats, jtbl_lw_instructions, instr_index, instructions, output_file, false, needs_link_branch, num_link_branches, reloc_index, needs_link_branch, is_branch_likely, tag_reference_relocs, static_funcs_out) == false) {
-                fmt::print(stderr, "Error in recompiling {}, clearing output file\n", func.name);
-                output_file.clear();
-                return false;
+                if (!context.ignore_unhandled_ops) {
+                    SPDLOG_ERROR("Error in recompiling {}, clearing output file", func.name);
+                    output_file.clear();
+                    return false;
+                }
             }
             // If a link return branch was generated, advance the number of link return branches
             if (had_link_branch) {

@@ -13,3 +13,6 @@
 [submodule "lib/sljit"]
 	path = lib/sljit
 	url = https://github.com/zherczeg/sljit
+[submodule "lib/spdlog"]
+	path = lib/spdlog
+	url = https://github.com/gabime/spdlog.git
