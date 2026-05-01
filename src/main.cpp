@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <unordered_set>
@@ -194,30 +195,37 @@ void dump_context(const N64Recomp::Context& context, const std::unordered_map<ui
 
             // Dump relocs into the function context file.
             if (!section.relocs.empty()) {
-                fmt::print(func_context_file, "relocs = [\n");
-
+                std::vector<std::reference_wrapper<const N64Recomp::Reloc>> relocs_out;
                 for (const N64Recomp::Reloc& reloc : section.relocs) {
                     if (reloc.target_section == section_index || reloc.target_section == section.bss_section_index) {
                         // TODO allow emitting MIPS32 relocs for specific sections via a toml option for TLB mapping support.
                         if (reloc.type == N64Recomp::RelocType::R_MIPS_HI16 || reloc.type == N64Recomp::RelocType::R_MIPS_LO16 || reloc.type == N64Recomp::RelocType::R_MIPS_26) {
-                            fmt::print(func_context_file, "    {{ type = \"{}\", vram = 0x{:08X}, target_vram = 0x{:08X} }},\n",
-                                reloc_names[static_cast<int>(reloc.type)], reloc.address, reloc.target_section_offset + section.ram_addr);
+                            relocs_out.push_back(reloc);
                         }
                     }
                 }
+                std::ranges::sort(relocs_out, {}, &N64Recomp::Reloc::address);
 
+                fmt::print(func_context_file, "relocs = [\n");
+                for (const N64Recomp::Reloc& reloc : relocs_out) {
+                    fmt::print(func_context_file, "    {{ type = \"{}\", vram = 0x{:08X}, target_vram = 0x{:08X} }},\n",
+                        reloc_names[static_cast<int>(reloc.type)], reloc.address, reloc.target_section_offset + section.ram_addr);
+                }
                 fmt::print(func_context_file, "]\n\n");
             }
 
             // Dump functions into the function context file.
-            fmt::print(func_context_file, "functions = [\n");
-
+            std::vector<std::reference_wrapper<const N64Recomp::Function>> functions_out;
             for (const size_t& function_index : section_funcs) {
-                const N64Recomp::Function& func = context.functions[function_index];
+                functions_out.push_back(context.functions[function_index]);
+            }
+            std::ranges::sort(functions_out, {}, [](const N64Recomp::Function& func) { return std::tie(func.vram, func.name); });
+
+            fmt::print(func_context_file, "functions = [\n");
+            for (const N64Recomp::Function& func : functions_out) {
                 fmt::print(func_context_file, "    {{ name = \"{}\", vram = 0x{:08X}, size = 0x{:X} }},\n",
                     func.name, func.vram, func.words.size() * sizeof(func.words[0]));
             }
-
             fmt::print(func_context_file, "]\n\n");
         }
         
@@ -226,12 +234,16 @@ void dump_context(const N64Recomp::Context& context, const std::unordered_map<ui
             print_section(data_context_file, section.name, section.rom_addr, section.ram_addr, section.size);
 
             // Dump other symbols into the data context file.
-            fmt::print(data_context_file, "symbols = [\n");
-
+            std::vector<std::reference_wrapper<const N64Recomp::DataSymbol>> symbols_out;
             for (const N64Recomp::DataSymbol& cur_sym : find_syms_it->second) {
+                symbols_out.push_back(cur_sym);
+            }
+            std::ranges::sort(symbols_out, {}, [](const N64Recomp::DataSymbol& sym) { return std::tie(sym.vram, sym.name); });
+            
+            fmt::print(data_context_file, "symbols = [\n");
+            for (const N64Recomp::DataSymbol& cur_sym : symbols_out) {
                 fmt::print(data_context_file, "    {{ name = \"{}\", vram = 0x{:08X} }},\n", cur_sym.name, cur_sym.vram);
             }
-            
             fmt::print(data_context_file, "]\n\n");
         }
     }
