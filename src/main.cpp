@@ -204,7 +204,9 @@ void dump_context(const N64Recomp::Context& context, const std::unordered_map<ui
                         }
                     }
                 }
-                std::ranges::sort(sorted_relocs, {}, &N64Recomp::Reloc::address);
+                std::sort(sorted_relocs.begin(), sorted_relocs.end(), [](auto& a, auto& b) {
+                    return a.get().address < b.get().address;
+                });
 
                 fmt::print(func_context_file, "relocs = [\n");
                 for (const N64Recomp::Reloc& reloc : sorted_relocs) {
@@ -219,7 +221,9 @@ void dump_context(const N64Recomp::Context& context, const std::unordered_map<ui
             for (const size_t& function_index : section_funcs) {
                 sorted_funcs.push_back(context.functions[function_index]);
             }
-            std::ranges::sort(sorted_funcs, {}, [](const N64Recomp::Function& func) { return std::tie(func.vram, func.name); });
+            std::sort(sorted_funcs.begin(), sorted_funcs.end(), [](auto& a, auto& b) {
+                return std::tie(a.get().vram, a.get().name) < std::tie(b.get().vram, b.get().name);
+            });
 
             fmt::print(func_context_file, "functions = [\n");
             for (const N64Recomp::Function& func : sorted_funcs) {
@@ -238,7 +242,9 @@ void dump_context(const N64Recomp::Context& context, const std::unordered_map<ui
             for (const N64Recomp::DataSymbol& cur_sym : find_syms_it->second) {
                 sorted_symbols.push_back(cur_sym);
             }
-            std::ranges::sort(sorted_symbols, {}, [](const N64Recomp::DataSymbol& sym) { return std::tie(sym.vram, sym.name); });
+            std::sort(sorted_symbols.begin(), sorted_symbols.end(), [](auto& a, auto& b) {
+                return std::tie(a.get().vram, a.get().name) < std::tie(b.get().vram, b.get().name);
+            });
             
             fmt::print(data_context_file, "symbols = [\n");
             for (const N64Recomp::DataSymbol& cur_sym : sorted_symbols) {
@@ -257,7 +263,9 @@ void dump_context(const N64Recomp::Context& context, const std::unordered_map<ui
         for (const N64Recomp::DataSymbol& cur_sym : find_abs_syms_it->second) {
             sorted_symbols.push_back(cur_sym);
         }
-        std::ranges::sort(sorted_symbols, {}, [](const N64Recomp::DataSymbol& sym) { return std::tie(sym.vram, sym.name); });
+        std::sort(sorted_symbols.begin(), sorted_symbols.end(), [](auto& a, auto& b) {
+            return std::tie(a.get().vram, a.get().name) < std::tie(b.get().vram, b.get().name);
+        });
 
         fmt::print(data_context_file, "symbols = [\n");
         for (const N64Recomp::DataSymbol& cur_sym : sorted_symbols) {
